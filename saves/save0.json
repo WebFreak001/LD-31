@@ -1,0 +1,16 @@
+{
+	"Name": "save0",
+	"Width": 20,
+	"Height": 20,
+	"BlockX": 10,
+	"BlockY": 10,
+	"Blocks": [
+		{
+			"Model": "street",
+			"ID": 0,
+			"Rotation":  [0, 0, 0],
+			"Position": [0, 0],
+			"Material":  "street"
+		}
+	]
+}

@@ -1,0 +1,11 @@
+{
+    "description": "EncoX Material Schema",
+    "type": "object",
+    "properties": {
+        "Name": { "type": "string" },
+        "Textures": { "type": "object" },
+        "Vertex": { "type": "object" },
+        "Fragment": { "type": "object" }
+    },
+    "required": ["Name", "Vertex", "Fragment"]
+}

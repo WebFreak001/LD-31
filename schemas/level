@@ -1,0 +1,13 @@
+{
+    "description": "LD31 Level Schema",
+    "type": "object",
+    "properties": {
+        "Name": { "type": "string" },
+        "Blocks": { "type": "array" },
+        "Width": { "type": "number" },
+        "Height": { "type": "number" },
+        "BlockX": { "type": "number" },
+        "BlockY": { "type": "number" }
+    },
+    "required": ["Name", "Blocks", "Width", "Height"]
+}
