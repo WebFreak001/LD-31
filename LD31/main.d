@@ -15,7 +15,7 @@ void main() {
 				renderer,
 				new GameScene());
 	context.start();
-	renderer.setClearColor(0.5f, 0.8f, 1.0f);
+	renderer.setClearColor(121 / 255.0f, 85 / 255.0f, 72 / 255.0f);
 
 	Camera camera = new Camera();
 	camera.setWidth(1600);
