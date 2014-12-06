@@ -1,0 +1,38 @@
+{
+	"name": "EncoX",
+	"description": "Naronco open source 3D engine",
+	"authors": ["NaroncoNexo", "WebFreak001"],
+	"homepage": "https://github.com/Naronco/EncoX",
+	"targetPath": "bin",
+	"targetType": "executable",
+	"sourcePaths": ["LD31/", "source/"],
+	"importPaths": ["LD31/", "source/"],
+	"license": "GPL-2.0",
+	"buildTypes": {
+		"debug": {
+			"buildOptions": ["debugMode", "debugInfo", "debugInfoC", "alwaysStackFrame", "stackStomping"]
+		},
+		"debug-profile": {
+			"buildOptions": ["debugMode", "debugInfo", "debugInfoC", "profile", "alwaysStackFrame", "stackStomping"]
+		},
+		"release": {
+			"buildOptions": ["releaseMode", "inline", "optimize"]
+		},
+		"docs": {
+			"buildOptions": ["syntaxOnly"],
+			"dflags": ["-c", "-Dddocs"]
+		}
+	},
+	"dependencies": {
+		"derelict-sdl2": ">=1.2.8",
+		"derelict-gl3": ">=1.0.10",
+		"gl3n": ">=1.0.0",
+		"derelict-assimp3": ">=1.0.0"
+	},
+	"subPackages": [
+		"source/EncoXD/EncoShared",
+		"source/EncoXD/EncoDesktop",
+		"source/EncoXD/EncoGL3",
+		"LD31/"
+	]
+}

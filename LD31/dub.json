@@ -1,0 +1,16 @@
+{
+	"name": "LD-31",
+	"description": "Ludum Dare!",
+	"authors": ["WebFreak001"],
+	"homepage": "https://github.com/WebFreak001/LD-31",
+	"license": "GPL-2.0",
+	"targetType": "executable",
+	"sourcePaths": [".", "../source/"],
+	"importPaths": [".", "../source/"],
+	"dependencies": {
+		"derelict-sdl2": ">=1.2.8",
+		"derelict-gl3": ">=1.0.10",
+		"gl3n": ">=1.0.0",
+		"derelict-assimp3": ">=1.0.0"
+	}
+}
