@@ -13,12 +13,9 @@ class MeshObject : GameObject
 
 	override protected void draw(RenderContext context, IRenderer renderer)
 	{
-		if(!isInitialized)
+		if(m_mesh.renderable is null)
 		{
-			m_renderable = renderer.createMesh(m_mesh);
-			m_mesh = null;
-			isInitialized = true;
-
+			m_mesh = renderer.createMesh(m_mesh);
 		}
 
 		m_material.bind(context);
@@ -27,7 +24,7 @@ class MeshObject : GameObject
 		m_material.program.set("projection", context.camera.projectionMatrix);
 		m_material.program.set("normalmatrix", modelMatrix().transposed().inverse());
 
-		renderer.renderMesh(m_renderable);
+		renderer.renderMesh(m_mesh);
 	}
 
 	@property mat4 modelMatrix()
@@ -38,9 +35,13 @@ class MeshObject : GameObject
 				mat4.identity.rotate(transform.rotation.z, vec3(0, 0, 1)) *
 				mat4.identity.scale(transform.scale.x, transform.scale.y, transform.scale.z);
 	}
+	
+	@property Mesh mesh() { return m_mesh; }
+	@property void mesh(Mesh mesh) { m_mesh = mesh; }
+	
+	@property Material material() { return m_material; }
+	@property void material(Material material) { m_material = material; }
 
-	private Mesh m_mesh;
-	private bool isInitialized = false;
-	private RenderableMesh m_renderable;
-	private Material m_material;
+	protected Mesh m_mesh;
+	protected Material m_material;
 }

@@ -9,6 +9,7 @@ import std.algorithm;
 
 import Level;
 import NoDepthComponent;
+import ParticleSystem;
 
 enum MAT_HOUSEL1 = 0;
 enum MAT_TRAILER1 = 1;
@@ -22,6 +23,8 @@ Mesh[] stone;
 Mesh[] street;
 Mesh[] houses_low;
 Mesh[] ui;
+Mesh[] car;
+Mesh[] smoke;
 Mesh[][string] meshes;
 Material[string] materials;
 
@@ -41,6 +44,8 @@ class Game3DLayer : RenderLayer
 
 	u32vec2 start;
 
+	ParticleSystem system;
+
 	override void init(Scene scene)
 	{
 		this.scene = scene;
@@ -51,12 +56,16 @@ class Game3DLayer : RenderLayer
 		street = Mesh.loadFromObj("meshes/street.obj", 0);
 		houses_low = Mesh.loadFromObj("meshes/houses_low.obj", 0);
 		ui = Mesh.loadFromObj("meshes/ui.obj", 0);
+		car = Mesh.loadFromObj("meshes/car.obj", 0);
+		smoke = Mesh.loadFromObj("meshes/smoke.obj", 0);
 		
 		meshes["floor"] = floor;
 		meshes["stone"] = stone;
 		meshes["street"] = street;
 		meshes["houses_low"] = houses_low;
 		meshes["ui"] = ui;
+		meshes["car"] = car;
+		meshes["smoke"] = smoke;
 
 		materials = [
 					"houseL1": GLMaterial.load(scene.renderer, "materials/houseL1.json"),
@@ -66,6 +75,8 @@ class Game3DLayer : RenderLayer
 					"error": GLMaterial.load(scene.renderer, "materials/error.json"),
 					"grass": GLMaterial.load(scene.renderer, "materials/grass.json"),
 					"hover": GLMaterial.load(scene.renderer, "materials/hover.json"),
+					"car": GLMaterial.load(scene.renderer, "materials/car.json"),
+					"smoke": GLMaterial.load(scene.renderer, "materials/smoke.json"),
 					];
 
 		random = new Random();
@@ -82,13 +93,17 @@ class Game3DLayer : RenderLayer
 		for(int x = -40; x < -10; x++)
 			addMesh(street[0], materials["street"], vec3(x * 10, 0, 0));
 
-
-		load("save0_auto");
-
 		hover = new MeshObject(ui[0], materials["hover"]);
 		hover.transform.position = vec3(-10000, 0, -10000);
 		hover.transform.rotation = vec3(0);
 		hover.addComponent(new NoDepthComponent());
+
+		system = new ParticleSystem();
+		system.mesh = smoke[0];
+		system.mat = materials["smoke"];
+		system.addComponent(new NoDepthComponent());
+
+		load("save0_auto");
 	}
 
 	private void load(string save)
@@ -97,6 +112,8 @@ class Game3DLayer : RenderLayer
 		
 		for(int i = 0; i < level.blocks.length; i++)
 		{
+			if(level.blocks[i].type == BlockType.Residential)
+				system.addEmitter(vec3(level.blocks[i].position.x * level.blockX - level.width * 0.5f * level.blockX, 3, level.blocks[i].position.z * level.blockY - level.height * 0.5f * level.blockY));
 			addMesh(meshes[level.blocks[i].model][level.blocks[i].modelID], materials[level.blocks[i].material], vec3(level.blocks[i].position.x * level.blockX - level.width * 0.5f * level.blockX, 0, level.blocks[i].position.z * level.blockY - level.height * 0.5f * level.blockY), level.blocks[i].rotation * 0.0174532925f).data = cast(void*)1;
 		}
 	}
@@ -128,12 +145,15 @@ class Game3DLayer : RenderLayer
 
 	override protected void draw(RenderContext context, IRenderer renderer)
 	{
+		system.performDraw(context, renderer);
 		hover.performDraw(context, renderer);
 	}
 	
 
 	override protected void update(f64 deltaTime)
 	{
+		level.update();
+
 		if(mouse != null)
 		wasDown = mouse.isButtonDown(0);
 		mouse = Mouse.getState();
@@ -170,7 +190,9 @@ class Game3DLayer : RenderLayer
 					case 0:
 						if(!level.hasBlock(x, y))
 						{
-							Block block = level.postProcessStreet(level.add(x, y, "street", 0, 0, "street"));
+							auto mesh = addMesh(street[0], materials["street"], vec3(x * level.blockX - level.width * 0.5f * level.blockX, 0, y * level.blockY - level.height * 0.5f * level.blockY), vec3(0));
+							mesh.data = cast(void*)1;
+							Block block = level.postProcessStreet(level.add(&mesh, x, y, "street", 0, 0, "street", 0, BlockType.Street));
 							level.blocks[level.blocks.length - 1] = block;
 							level.updateStreets(x + 1, y);
 							level.updateStreets(x - 1, y);
@@ -180,14 +202,16 @@ class Game3DLayer : RenderLayer
 							updateGO(x - 1, y);
 							updateGO(x, y + 1);
 							updateGO(x, y - 1);
-							addMesh(street[block.modelID], materials["street"], vec3(x * level.blockX - level.width * 0.5f * level.blockX, 0, y * level.blockY - level.height * 0.5f * level.blockY), block.rotation * 0.0174532925f).data = cast(void*)1;
+							mesh.mesh = street[block.modelID];
+							mesh.transform.rotation = block.rotation * 0.0174532925f;
 						}
 						break;
 					case 1:
 						if(!level.hasBlock(x, y))
 						{
-							level.add(x, y, "houses_low", 2, 0, "houseL1", 0);
-							addMesh(houses_low[2], materials["houseL1"], vec3(x * level.blockX - level.width * 0.5f * level.blockX, 0, y * level.blockY - level.height * 0.5f * level.blockY), vec3(0)).data = cast(void*)1;
+							auto mesh = addMesh(houses_low[2], materials["houseL1"], vec3(x * level.blockX - level.width * 0.5f * level.blockX, 0, y * level.blockY - level.height * 0.5f * level.blockY), vec3(0));
+							mesh.data = cast(void*)1;
+							level.add(&mesh, x, y, "houses_low", 2, 0, "houseL1", 0, BlockType.Residential);
 						}
 						break;
 					default:
@@ -213,6 +237,16 @@ class Game3DLayer : RenderLayer
 		{
 			hover.transform.position = vec3(-10000, 0, -10000);
 		}
+
+		level.updateHouses();
+		
+		for(int x = 0; x < 20; x++)
+		{
+			for(int y = 0; y < 20; y++)
+			{
+				updateGO(x, y);
+			}
+		}
 	}
 
 	void remove(u32vec2 v) { remove(cast(int)v.x, cast(int)v.y); }
@@ -229,13 +263,16 @@ class Game3DLayer : RenderLayer
 		{
 			if(obj.data == cast(void*)1 && cast(int)(obj.transform.position.x * 0.1f + 10.5f) == x && cast(int)(obj.transform.position.z * 0.1f + 10.5f) == y)
 			{
-				removeGameObject(obj);
+				if(!level.hasBlock(x, y))
+				{
+					removeGameObject(obj);
+					return;
+				}
 
 				auto block = level.getBlock(x, y);
-				if(level.hasBlock(x, y))
-				{
-					addMesh(meshes[block.model][block.modelID], materials[block.material], vec3(block.position.x * level.blockX - level.width * 0.5f * level.blockX, 0, block.position.z * level.blockY - level.height * 0.5f * level.blockY), block.rotation * 0.0174532925f).data = cast(void*)1;
-				}
+				(cast(MeshObject)obj).mesh = meshes[block.model][block.modelID];
+				(cast(MeshObject)obj).material = materials[block.material];
+				obj.transform.rotation = block.rotation * 0.0174532925f;
 			}
 		}
 	}

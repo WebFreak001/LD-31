@@ -5,6 +5,11 @@ import std.algorithm;
 import std.stdio;
 import EncoShared;
 
+enum BlockType : int
+{
+	Street = 0, Residential, Commercial, Industrial, Park, None
+}
+
 struct Block
 {
 	string model;
@@ -13,16 +18,42 @@ struct Block
 	vec3 position;
 	string material;
 	float tier;
+	float happyness;
+	MeshObject* bound;
+	BlockType type;
+
+	int numPersons;
+	int maxPersons;
+}
+
+struct Person
+{
+	float x, y;
+
+	float tx, ty;
+
+	this(float x, float y)
+	{
+		this.x = x;
+		this.y = y;
+
+		tx = ty = 0;
+	}
+
+
 }
 
 struct Level
 {
 	float width, height;
 	float blockX, blockY;
+	float happyness;
 
 	string name;
 
 	Block[] blocks;
+
+	private Random random;
 
 	private float getFloatInt(JSONValue* value, const string name, float def)
 	{
@@ -56,10 +87,10 @@ struct Level
 		}
 	}
 
-	Block add(int x, int y, string model, int modelID, float rota, string mat, float tier = 0)
+	Block add(MeshObject* obj, int x, int y, string model, int modelID, float rota, string mat, float tier = 0, BlockType type = BlockType.Street)
 	{
 		blocks.length++;
-		blocks[blocks.length - 1] = Block(model, modelID, vec3(0, rota, 0), vec3(x, 0, y), mat, tier);
+		blocks[blocks.length - 1] = Block(model, modelID, vec3(0, rota, 0), vec3(x, 0, y), mat, tier, 0, obj, type);
 		return blocks[blocks.length - 1];
 	}
 
@@ -84,6 +115,7 @@ struct Level
 	this(string file)
 	{
 		JSONValue value = parseJSON!string(std.file.readText(file));
+		random = new Random();
 		
 		name = value["Name"].str;
 		
@@ -91,10 +123,13 @@ struct Level
 		height = getFloatInt(&value, "Height", 20);
 		blockX = getFloatInt(&value, "BlockX", 10);
 		blockY = getFloatInt(&value, "BlockY", 10);
+		happyness = getFloatInt(&value, "Happyness", 1);
 
 		auto blocks = value["Blocks"].array;
 
-		foreach(JSONValue block; blocks)
+		this.blocks.length = blocks.length;
+
+		foreach(int i, JSONValue block; blocks)
 		{
 			Block b = Block();
 			b.model = block["Model"].str;
@@ -104,10 +139,11 @@ struct Level
 			auto pos = block["Position"].array;
 			b.position = vec3(getFloatIntArray(pos, 0, 0), 0, getFloatIntArray(pos, 1, 0));
 			b.material = block["Material"].str;
-			b.tier = getFloatInt(&value, "Tier", 0);
+			b.tier = getFloatInt(&block, "Tier", 0);
+			b.happyness = getFloatInt(&block, "Happyness", 1);
+			b.type = cast(BlockType)getFloatInt(&block, "Type", 0);
 
-			this.blocks.length++;
-			this.blocks[this.blocks.length - 1] = b;
+			this.blocks[i] = b;
 		}
 
 		regenStreets();
@@ -116,7 +152,13 @@ struct Level
 
 	Block getBlock(int x, int y)
 	{
-		if(y == 10 && x < 0) return Block("street");
+		if(y == 10 && x < 0) { Block b = Block(); b.type = BlockType.Street; return b; }
+		if(x < 0 || y < 0 || x >= width || y >= height)
+		{
+			Block b = Block();
+			b.type = BlockType.None;
+			return b;
+		}
 		foreach(Block block; blocks)
 		{
 			int bx = cast(int)(block.position.x + 0.5f);
@@ -125,12 +167,14 @@ struct Level
 			if(bx == x && by == y)
 				return block;
 		}
-		return Block();
+		Block b = Block();
+		b.type = BlockType.None;
+		return b;
 	}
 
 	Block postProcessStreet(Block block)
 	{
-		if(block.model == "street")
+		if(block.type == BlockType.Street)
 		{
 			int numSur = 0;
 			bool isUp = false, isDown = false, isRight = false, isLeft = false;
@@ -143,10 +187,10 @@ struct Level
 			auto right = getBlock(x + 1, y);
 			auto left = getBlock(x - 1, y);
 
-			if(up.model !is null && up.model == "street") { numSur++; isUp = true; }
-			if(down.model !is null && down.model == "street") { numSur++; isDown = true; }
-			if(right.model !is null && right.model == "street") { numSur++; isRight = true; }
-			if(left.model !is null && left.model == "street") { numSur++; isLeft = true; }
+			if(up.model !is null && up.type == BlockType.Street) { numSur++; isUp = true; }
+			if(down.model !is null && down.type == BlockType.Street) { numSur++; isDown = true; }
+			if(right.model !is null && right.type == BlockType.Street) { numSur++; isRight = true; }
+			if(left.model !is null && left.type == BlockType.Street) { numSur++; isLeft = true; }
 
 			if(numSur == 0) block.modelID = 4;
 			else if(numSur == 1)
@@ -225,37 +269,86 @@ struct Level
 		return block;
 	}
 
+	void update()
+	{
+		foreach(int i, Block block; blocks)
+		{
+			float hapOff = random.nextFloat() * 0.5f + block.happyness;
+
+			float old = block.tier;
+			if(hapOff > 0)
+			{
+				block.tier += hapOff * happyness * 0.01f * random.nextFloat();
+			}
+			else
+			{
+				block.tier += hapOff * 0.001f;
+			}
+
+			if(old >= 1 && block.tier < 1) block.tier = 1;
+			if(block.tier < 0) block.tier = 0;
+
+			blocks[i] = block;
+		}
+	}
+
 	void updateHouses()
 	{
 		foreach(int i, Block block; blocks)
 		{
-			if(block.model == "house_low")
+			if(block.type == BlockType.Residential)
 			{
-				int baseTier = cast(int)(block.tier + 0.5f);
+				int baseTier = cast(int)(block.tier);
 
-				if(baseTier == 0)
+				if(baseTier < 3)
 				{
-					if(block.tier > 0.6f)
-					{
-						block.modelID = 3;
-					}
-					else if(block.tier > 0.3f)
-					{
-						block.modelID = 2;
-					}
-					else
+					if(block.tier < 1)
 					{
 						block.modelID = 4;
 					}
+					else if(block.tier >= 1)
+					{
+						block.modelID = 3;
+					}
+					else if(block.tier > 2)
+					{
+						block.modelID = 2;
+					}
+					block.maxPersons = 0;
 				}
-				else if(baseTier == 1)
+				else if(baseTier < 8) // 3 ^ x
 				{
 					block.modelID = 1;
+					block.material = "trailer1";
+					block.maxPersons = 2;
 				}
-				else if(baseTier == 2)
+				else if(baseTier < 27)
 				{
 					block.modelID = 0;
+					block.material = "houseL1";
+					block.maxPersons = 6;
 				}
+				else if(baseTier < 64)
+				{
+					block.modelID = 0;
+					block.material = "houseL1";
+					block.maxPersons = 24;
+				}
+				else if(baseTier < 125)
+				{
+					block.modelID = 0;
+					block.material = "houseL1";
+					block.maxPersons = 60;
+				}
+				else if(baseTier < 216)
+				{
+					block.modelID = 0;
+					block.material = "houseL1";
+					block.maxPersons = 180;
+				}
+
+				block.numPersons = min(block.numPersons, block.maxPersons);
+				blocks[i] = block;
 			}
 		}
 	}
@@ -290,7 +383,9 @@ struct Level
 			JSONValue b = [
 				"Model": JSONValue(block.model),
 				"ID": JSONValue(block.modelID),
+				"Type": JSONValue(cast(int)block.type),
 				"Tier": JSONValue(block.tier),
+				"Happyness": JSONValue(block.happyness),
 				"Material": JSONValue(block.material),
 				"Rotation": JSONValue([cast(float)block.rotation.x, cast(float)block.rotation.y, cast(float)block.rotation.z]),
 				"Position": JSONValue([cast(float)block.position.x, cast(float)block.position.z])];

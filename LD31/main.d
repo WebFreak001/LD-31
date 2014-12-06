@@ -7,6 +7,74 @@ import GameScene;
 import std.stdio;
 import std.traits;
 
+class Timer
+{
+	int startTicks;
+
+	int pausedTicks;
+
+	bool paused;
+	bool started;
+
+	this()
+	{
+		startTicks = 0;
+		pausedTicks = 0;
+		paused = false;
+		started = false;
+	}
+
+	//The various clock actions
+	void start()
+	{
+		started = true;
+
+		paused = false;
+
+		startTicks = SDL_GetTicks();
+	}
+	void stop()
+	{
+		started = false;
+
+		paused = false;
+	}
+	void pause()
+	{
+		if(started && !paused)
+		{
+			paused = true;
+			pausedTicks = SDL_GetTicks() - startTicks;
+		}
+	}
+	void unpause()
+	{
+		if(paused)
+		{
+			paused = false;
+			startTicks = SDL_GetTicks() - pausedTicks;
+			pausedTicks = 0;
+		}
+	}
+
+	int get_ticks()
+	{
+		if(started)
+		{
+			if(paused)
+			{
+				return pausedTicks;
+			}
+			else
+			{
+				return SDL_GetTicks() - startTicks;
+			}
+		}
+
+		return 0;
+	}
+}
+
 void main() {
 	auto renderer = new GL3Renderer();
 
@@ -29,6 +97,8 @@ void main() {
 	RenderContext render = RenderContext();
 	render.camera = camera;
 
+	Timer fps = new Timer();
+
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -36,7 +106,7 @@ void main() {
 	//glEnable(GL_CULL_FACE);
 	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-	// TODO: Minimize all this code to 15-25 lines + shaders + imports
+	const int FRAMES_PER_SECOND = 60;
 
 	KeyboardState* state = Keyboard.getState();
 
@@ -52,6 +122,12 @@ void main() {
 		renderer.endFrame();
 
 		if (state.isKeyDown(SDLK_ESCAPE)) break;
+
+		if(fps.get_ticks() < 1000 / FRAMES_PER_SECOND)
+		{
+			SDL_Delay(1000 / FRAMES_PER_SECOND - fps.get_ticks());
+		}
+
 	}
 
 	context.stop();

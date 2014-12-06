@@ -1,0 +1,14 @@
+{
+	"Name": "Smoke",
+	"Textures":
+	{
+		"0": { "File": "tex/smoke.png", "MipMap": true }
+	},
+	"Vertex": "default",
+	"Fragment":
+	{
+		"Base": "smoke",
+		"Ambient": "vec3(0.6, 0.6, 0.6)",
+		"Color": "tex(slot0)"
+	}
+}
