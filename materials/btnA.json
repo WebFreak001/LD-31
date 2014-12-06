@@ -1,0 +1,13 @@
+{
+	"Name": "Button A",
+	"Textures":
+	{
+		"0": { "File": "tex/btn-a.png", "MipMap": true }
+	},
+	"Vertex": "default",
+	"Fragment":
+	{
+		"Base": "texture",
+		"Color": "tex(slot0)"
+	}
+}

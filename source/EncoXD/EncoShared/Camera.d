@@ -39,7 +39,7 @@ class Camera : GameObject
 	void setWidth(float value) { m_needUpdate = m_needUpdate || m_width != value; m_width = value; }
 	void setHeight(float value) { m_needUpdate = m_needUpdate || m_height != value; m_height = value; }
 	void setFov(float value) { m_needUpdate = m_needUpdate || m_fov != value; m_fov = value; }
-	
+
 	private f32 m_near = 0.1f;
 	private f32 m_far = 100;
 	private f32 m_width = 1;

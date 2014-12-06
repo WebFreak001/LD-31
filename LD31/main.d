@@ -23,7 +23,7 @@ void main() {
 	camera.setFarClip(1000.0f);
 	camera.setFov(90);
 
-	camera.transform.position = vec3(0, 120, 0);
+	camera.transform.position = vec3(-5, 120, -5);
 	camera.transform.rotation = vec3(-1.57079633f, 0, 0);
 
 	RenderContext render = RenderContext();
@@ -39,12 +39,10 @@ void main() {
 	// TODO: Minimize all this code to 15-25 lines + shaders + imports
 
 	KeyboardState* state = Keyboard.getState();
-	MouseState* mstate = Mouse.getState();
 
 	while(context.update())
 	{
 		state = Keyboard.getState();
-		mstate = Mouse.getState();
 
 		renderer.beginFrame();
 		renderer.clearBuffer(RenderingBuffer.colorBuffer | RenderingBuffer.depthBuffer);

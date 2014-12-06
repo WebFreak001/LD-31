@@ -1,0 +1,14 @@
+{
+	"Name": "Hover",
+	"Textures":
+	{
+		"0": { "File": "tex/hover.png", "MipMap": true }
+	},
+	"Vertex": "default",
+	"Fragment":
+	{
+		"Base": "hover",
+		"Ambient": "vec3(0.1, 0.1, 0.1)",
+		"Color": "tex(slot0)"
+	}
+}

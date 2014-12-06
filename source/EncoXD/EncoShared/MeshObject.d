@@ -32,10 +32,11 @@ class MeshObject : GameObject
 
 	@property mat4 modelMatrix()
 	{
-		return mat4.identity.translate(transform.position.x, transform.position.y, transform.position.z) *
+		return  mat4.identity.translate(transform.position.x, transform.position.y, transform.position.z) *
 				mat4.identity.rotate(transform.rotation.x, vec3(1, 0, 0)) *
 				mat4.identity.rotate(transform.rotation.y, vec3(0, 1, 0)) *
-				mat4.identity.rotate(transform.rotation.z, vec3(0, 0, 1));
+				mat4.identity.rotate(transform.rotation.z, vec3(0, 0, 1)) *
+				mat4.identity.scale(transform.scale.x, transform.scale.y, transform.scale.z);
 	}
 
 	private Mesh m_mesh;

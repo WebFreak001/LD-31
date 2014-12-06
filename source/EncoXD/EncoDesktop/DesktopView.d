@@ -45,9 +45,14 @@ struct MouseState
 		return buttons[button];
 	}
 
-	bool isKeyUp(u8 button)
+	bool isButtonUp(u8 button)
 	{
 		return !buttons[button];
+	}
+
+	@property MouseState* dup()
+	{
+		return new MouseState(position, offset, buttons[]);
 	}
 }
 
@@ -55,7 +60,11 @@ class Mouse
 {
 	static MouseState* getState()
 	{
-		return new MouseState(position, offset, buttons[]);
+		MouseState* state = new MouseState();
+		state.position = position;
+		state.offset = offset;
+		state.buttons[] = buttons;
+		return state;
 	}
 
 	static void capture(DesktopView window)
@@ -74,7 +83,7 @@ class Mouse
 
 	private static void setButton(i8 button, bool click)
 	{
-		buttons[button] = click;
+		buttons[button - 1] = click;
 	}
 
 	private static void setPosition(i32 x, i32 y)
@@ -129,7 +138,7 @@ class DesktopView : IView
 			flags = SDL_WINDOW_BORDERLESS;
 		}
 
-		m_window = SDL_CreateWindow(m_name.ptr, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, cast(int)m_size.x, cast(int)m_size.y, SDL_WINDOW_BORDERLESS | cast(uint)renderer.getSDLOptions());
+		m_window = SDL_CreateWindow(m_name.ptr, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, cast(int)m_size.x, cast(int)m_size.y, flags | cast(uint)renderer.getSDLOptions());
 		if(!m_window)
 		{
 			throw new Exception("Window failed");
@@ -137,6 +146,8 @@ class DesktopView : IView
 
 		m_renderer.createContext(0, 0, m_size.x, m_size.y, 32, 16, 0, false, m_window);
 		m_valid = true;
+
+		Mouse.buttons[] = false;
 	}
 
 	override void destroy()

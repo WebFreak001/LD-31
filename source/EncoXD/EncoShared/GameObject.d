@@ -47,6 +47,8 @@ class GameObject
 
 	Transform transform = Transform();
 
+	void* data = null;
+
 	void addComponent(IComponent component)
 	{
 		m_components.length++;

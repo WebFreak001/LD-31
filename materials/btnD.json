@@ -1,0 +1,13 @@
+{
+	"Name": "Button D",
+	"Textures":
+	{
+		"0": { "File": "tex/btn-d.png", "MipMap": true }
+	},
+	"Vertex": "default",
+	"Fragment":
+	{
+		"Base": "texture",
+		"Color": "tex(slot0)"
+	}
+}

@@ -199,11 +199,18 @@
  <Folder name="LD31">
   <Folder name="saves">
    <File path="..\saves\save0.json" />
+   <File path="..\saves\save0_auto.json" />
   </Folder>
   <Folder name="materials">
+   <File path="..\materials\btnA.json" />
+   <File path="..\materials\btnD.json" />
+   <File path="..\materials\btnF.json" />
+   <File path="..\materials\btnG.json" />
+   <File path="..\materials\btnS.json" />
    <File path="..\materials\error.json" />
    <File path="..\materials\grass.json" />
    <File path="..\materials\houseL1.json" />
+   <File path="..\materials\hover.json" />
    <File path="..\materials\stone.json" />
    <File path="..\materials\street.json" />
    <File path="..\materials\trailer1.json" />
@@ -212,5 +219,6 @@
   <File path="GameScene.d" />
   <File path="Level.d" />
   <File path="main.d" />
+  <File path="NoDepthComponent.d" />
  </Folder>
 </DProject>
