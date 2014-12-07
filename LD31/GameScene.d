@@ -6,6 +6,7 @@ import EncoGL3;
 
 import std.stdio;
 import std.algorithm;
+import std.conv;
 
 import Level;
 import NoDepthComponent;
@@ -84,6 +85,11 @@ class Game3DLayer : RenderLayer
 					"hover": GLMaterial.load(scene.renderer, "materials/hover.json"),
 					"car": GLMaterial.load(scene.renderer, "materials/car.json"),
 					"smoke": GLMaterial.load(scene.renderer, "materials/smoke.json"),
+					"highrise0": GLMaterial.load(scene.renderer, "materials/highrise0.json"),
+					"highrise1": GLMaterial.load(scene.renderer, "materials/highrise1.json"),
+					"highrise2": GLMaterial.load(scene.renderer, "materials/highrise2.json"),
+					"highrise3": GLMaterial.load(scene.renderer, "materials/highrise3.json"),
+					"highrise4": GLMaterial.load(scene.renderer, "materials/highrise4.json"),
 					];
 
 		random = new Random();
@@ -109,8 +115,6 @@ class Game3DLayer : RenderLayer
 		system.mesh = smoke[0];
 		system.mat = materials["smoke"];
 		system.addComponent(new NoDepthComponent());
-
-		
 
 		load("save0_auto");
 	}
@@ -183,7 +187,7 @@ class Game3DLayer : RenderLayer
 				}
 			}
 		}
-
+		
 		if(points.length > 0)
 		{
 			foreach(Waypoint point; points)
@@ -194,11 +198,15 @@ class Game3DLayer : RenderLayer
 		}
 	}
 	
+	string getHouseMatName(int n)
+	{
+		if(n == 0) return "houseL1";
+		else if(n == 1) return "trailer1";
+		else return "highrise" ~ to!string(random.nextInt(5));
+	}
 
 	override protected void update(f64 deltaTime)
 	{
-		level.update();
-
 		if(mouse != null)
 		wasDown = mouse.isButtonDown(0);
 		mouse = Mouse.getState();
@@ -239,7 +247,7 @@ class Game3DLayer : RenderLayer
 						{
 							auto mesh = addMesh(street[0], materials["street"], gridToAbsolute(vec3(x, 0, y)), vec3(0));
 							mesh.data = cast(void*)1;
-							Block block = level.postProcessStreet(level.add(&mesh, x, y, "street", 0, 0, "street", 0, BlockType.Street));
+							Block block = level.postProcessStreet(level.add(&mesh, x, y, "street", 0, 0, "street", BlockType.Street));
 							level.blocks[level.blocks.length - 1] = block;
 							level.updateStreets(x + 1, y);
 							level.updateStreets(x - 1, y);
@@ -256,69 +264,10 @@ class Game3DLayer : RenderLayer
 					case 1:
 						if(!level.hasBlock(x, y))
 						{
-							auto mesh = addMesh(houses_low[2], materials["houseL1"], gridToAbsolute(vec3(x, 0, y)), vec3(0));
+							int n = random.nextInt(houses_low.length);
+							auto mesh = addMesh(houses_low[n], materials[getHouseMatName(n)], gridToAbsolute(vec3(x, 0, y)), vec3(0));
 							mesh.data = cast(void*)1;
-							level.add(&mesh, x, y, "houses_low", 2, 0, "houseL1", 0, BlockType.Residential);
-						}
-						break;
-					case 2:
-						if(level.hasBlock(x, y) && level.getBlock(x, y).type == BlockType.Street)
-						{
-							startP = new Waypoint();
-							startP.x = x;
-							startP.y = y;
-							startP.cost = 0;
-							startP.heuristic = 0;
-							startP.prev = null;
-							writeln("Set Start");
-						}
-						break;
-					case 3:
-						if(level.hasBlock(x, y) && level.getBlock(x, y).type == BlockType.Street)
-						{
-							endP = new Waypoint();
-							endP.x = x;
-							endP.y = y;
-							endP.cost = 0;
-							endP.heuristic = 0;
-							endP.prev = null;
-							writeln("Set End");
-						}
-						break;
-					case 4:
-						int[] blocks = new int[cast(int)level.width * cast(int)level.height];
-
-						for(int xx = 0; xx < cast(int)level.width; xx++)
-						{
-							for(int yy = 0; yy < cast(int)level.height; yy++)
-							{
-								if(level.hasBlock(xx, yy) && level.getBlock(xx, yy).type == BlockType.Street)
-								{
-									if(level.getBlock(xx, yy).modelID == 0)
-										blocks[xx + yy * cast(int)level.width] = 1;
-									if(level.getBlock(xx, yy).modelID == 5)
-										blocks[xx + yy * cast(int)level.width] = 1;
-									if(level.getBlock(xx, yy).modelID == 3)
-										blocks[xx + yy * cast(int)level.width] = 1;
-									if(level.getBlock(xx, yy).modelID == 2)
-										blocks[xx + yy * cast(int)level.width] = 2;
-									if(level.getBlock(xx, yy).modelID == 1)
-										blocks[xx + yy * cast(int)level.width] = 3;
-								}
-								else
-									blocks[xx + yy * cast(int)level.width] = 999;
-							}
-						}
-						
-						writeln("Calculating");
-						astar = new AStar(startP, endP, blocks, cast(int)level.width, cast(int)level.height);
-						if(astar.calculate(points))
-						{
-							writeln("Calced");
-						}
-						else
-						{
-							writeln("Failed");
+							level.add(&mesh, x, y, "houses_low", n, 0, getHouseMatName(n), BlockType.Residential);
 						}
 						break;
 					default:
@@ -374,8 +323,6 @@ class Game3DLayer : RenderLayer
 			updateGO(x, y - 1);
 			updateGO(x, y);
 		}
-
-		level.updateHouses();
 		
 		for(int x = 0; x < 20; x++)
 		{
@@ -474,10 +421,7 @@ class GameGUILayer : RenderLayer
 		this.scene = scene;
 		obj ~= addMesh(meshes["street"][0], materials["street"], vec3(170, 0, -100), vec3(0), vec3(3, 1, 3));
 		obj ~= addMesh(meshes["houses_low"][0], materials["houseL1"], vec3(170, 0, -60), vec3(0), vec3(3, 1, 3));
-		obj ~= addMesh(meshes["houses_low"][1], materials["houseL1"], vec3(170, 0, -20), vec3(0), vec3(3, 1, 3));
-		obj ~= addMesh(meshes["houses_low"][2], materials["houseL1"], vec3(170, 0, 20), vec3(0), vec3(3, 1, 3));
-		obj ~= addMesh(meshes["houses_low"][3], materials["houseL1"], vec3(170, 0, 60), vec3(0), vec3(3, 1, 3));
-		obj ~= addMesh(meshes["houses_low"][4], materials["houseL1"], vec3(170, 0, 100), vec3(0), vec3(3, 1, 3));
+		obj ~= addMesh(meshes["houses_low"][1], materials["trailer1"], vec3(170, 0, -20), vec3(0), vec3(3, 1, 3));
 	}
 	
 	private GameObject addMesh(Mesh mesh, Material material, vec3 position, vec3 rotation = vec3(0), vec3 scale = vec3(1))

@@ -1,0 +1,14 @@
+{
+	"Name": "Highrise",
+	"Textures":
+	{
+		"0": { "File": "tex/highrise2.png", "MipMap": true }
+	},
+	"Vertex": "default",
+	"Fragment":
+	{
+		"Base": "diffuse",
+		"Ambient": "vec3(0.1, 0.1, 0.1)",
+		"Color": "tex(slot0)"
+	}
+}
