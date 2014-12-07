@@ -3,11 +3,19 @@ module Level;
 import std.json;
 import std.algorithm;
 import std.stdio;
+
 import EncoShared;
+
+import AStar;
 
 enum BlockType : int
 {
 	Street = 0, Residential, Commercial, Industrial, Park, None
+}
+
+enum PersonTask : int
+{
+	Nothing, Traveling, Visiting
 }
 
 struct Block
@@ -26,24 +34,111 @@ struct Block
 	int maxPersons;
 }
 
-struct Person
+class Person
 {
-	float x, y;
+	Waypoint current;
+	Waypoint target;
+	Waypoint[] path;
+	int step = 0;
+	Random random;
+	PersonTask cTask;
+	float t;
+	Level level;
+	bool needRecalc = false;
 
-	float tx, ty;
-
-	this(float x, float y)
+	this(Level level, Random random, int x, int y)
 	{
-		this.x = x;
-		this.y = y;
-
-		tx = ty = 0;
+		this.level = level;
+		current = new Waypoint(x, y, 0, 0, null);
+		target = new Waypoint(x, y, 0, 0, null);
+		this.random = random;
 	}
 
+	void recalc()
+	{
+		AStar context = new AStar(current, target, level.astarStreet, cast(int)level.width, cast(int)level.height);
+		if(context.calculate(path))
+		{
+			path.reverse();
+			step = 0;
+		}
+		else
+		{
+			cTask = PersonTask.Nothing;
+			rndTask();
+		}
+	}
 
+	void rndTask()
+	{
+		if(cTask != PersonTask.Nothing) return;
+		int rnd = random.nextInt(3);
+		if(rnd == 0)
+		{
+			Block[] blocks;
+			foreach(Block block; level.blocks)
+			{
+				if(block.type == BlockType.Residential || block.type == BlockType.Commercial || block.type == BlockType.Industrial || block.type == BlockType.Park)
+				{
+					blocks.length++;
+					blocks[blocks.length - 1] = block;
+				}
+			}
+			int r = random.nextInt(blocks.length);
+			target = new Waypoint(cast(int)blocks[r].position.x, cast(int)blocks[r].position.y, 0, 0, null);
+			writeln("P: Travling to ", target.x, " - ", target.y);
+			queryRecalc();
+		}
+	}
+
+	void queryRecalc()
+	{
+		needRecalc = true;
+	}
+
+	void update()
+	{
+		if(needRecalc)
+		{
+			recalc();
+			needRecalc = false;
+		}
+
+		if(cTask == PersonTask.Visiting)
+		{
+			if(random.nextInt(600) == 0)
+			{
+				cTask = PersonTask.Nothing;
+				writeln("P: Leaving");
+			}
+		}
+		else
+		{
+			t += 0.1f;
+			if(t > 1)
+			{
+				step++;
+				if(step >= path.length - 2)
+					cTask = PersonTask.Visiting;
+				t--;
+				writeln("P: Step");
+			}
+		}
+		rndTask();
+	}
+
+	@property vec3 position()
+	{
+		if(cTask != PersonTask.Traveling) return vec3(-1000, 0, -1000);
+		
+		float deltaX = path[step + 1].x - path[step].x;
+		float deltaY = path[step + 1].y - path[step].y;
+
+		return vec3(path[step].x + deltaX * t, 0, path[step].y * deltaY);
+	}
 }
 
-struct Level
+class Level
 {
 	float width, height;
 	float blockX, blockY;
@@ -52,8 +147,76 @@ struct Level
 	string name;
 
 	Block[] blocks;
+	Person[] persons;
+
+	int[] astarStreet;
 
 	private Random random;
+
+	this(string file)
+	{
+		JSONValue value = parseJSON!string(std.file.readText(file));
+		random = new Random();
+		
+		name = value["Name"].str;
+		
+		width = getFloatInt(&value, "Width", 20);
+		height = getFloatInt(&value, "Height", 20);
+		blockX = getFloatInt(&value, "BlockX", 10);
+		blockY = getFloatInt(&value, "BlockY", 10);
+		happyness = getFloatInt(&value, "Happyness", 1);
+
+		auto blocks = value["Blocks"].array;
+
+		this.blocks.length = blocks.length;
+
+		foreach(int i, JSONValue block; blocks)
+		{
+			Block b = Block();
+			b.model = block["Model"].str;
+			b.modelID = cast(int)block["ID"].integer;
+			auto rot = block["Rotation"].array;
+			b.rotation = vec3(getFloatIntArray(rot, 0, 0), getFloatIntArray(rot, 1, 0), getFloatIntArray(rot, 2, 0));
+			auto pos = block["Position"].array;
+			b.position = vec3(getFloatIntArray(pos, 0, 0), 0, getFloatIntArray(pos, 1, 0));
+			b.material = block["Material"].str;
+			b.tier = getFloatInt(&block, "Tier", 0);
+			b.happyness = getFloatInt(&block, "Happyness", 1);
+			b.type = cast(BlockType)getFloatInt(&block, "Type", 0);
+
+			this.blocks[i] = b;
+		}
+
+		astarStreet = new int[cast(int)(width * height)];
+
+		regenStreets();
+		updateHouses();
+	}
+
+	vec3 assignHome()
+	{
+		foreach(Block b; blocks)
+		{
+			if(b.type == BlockType.Residential)
+			{
+				if(b.numPersons < b.maxPersons)
+				{
+					b.numPersons++;
+					return b.position;
+				}
+			}
+		}
+		return vec3(-1, 0, -1);
+	}
+
+	void addPerson()
+	{
+		Person p = new Person(this, random, 0, 10);
+		vec3 pos = assignHome();
+		p.target = new Waypoint(cast(int)pos.x, cast(int)pos.y, 0, 0, null);
+		persons.length++;
+		persons[persons.length - 1] = p;
+	}
 
 	private float getFloatInt(JSONValue* value, const string name, float def)
 	{
@@ -112,44 +275,6 @@ struct Level
 		return false;
 	}
 
-	this(string file)
-	{
-		JSONValue value = parseJSON!string(std.file.readText(file));
-		random = new Random();
-		
-		name = value["Name"].str;
-		
-		width = getFloatInt(&value, "Width", 20);
-		height = getFloatInt(&value, "Height", 20);
-		blockX = getFloatInt(&value, "BlockX", 10);
-		blockY = getFloatInt(&value, "BlockY", 10);
-		happyness = getFloatInt(&value, "Happyness", 1);
-
-		auto blocks = value["Blocks"].array;
-
-		this.blocks.length = blocks.length;
-
-		foreach(int i, JSONValue block; blocks)
-		{
-			Block b = Block();
-			b.model = block["Model"].str;
-			b.modelID = cast(int)block["ID"].integer;
-			auto rot = block["Rotation"].array;
-			b.rotation = vec3(getFloatIntArray(rot, 0, 0), getFloatIntArray(rot, 1, 0), getFloatIntArray(rot, 2, 0));
-			auto pos = block["Position"].array;
-			b.position = vec3(getFloatIntArray(pos, 0, 0), 0, getFloatIntArray(pos, 1, 0));
-			b.material = block["Material"].str;
-			b.tier = getFloatInt(&block, "Tier", 0);
-			b.happyness = getFloatInt(&block, "Happyness", 1);
-			b.type = cast(BlockType)getFloatInt(&block, "Type", 0);
-
-			this.blocks[i] = b;
-		}
-
-		regenStreets();
-		updateHouses();
-	}
-
 	Block getBlock(int x, int y)
 	{
 		if(y == 10 && x < 0) { Block b = Block(); b.type = BlockType.Street; return b; }
@@ -187,12 +312,17 @@ struct Level
 			auto right = getBlock(x + 1, y);
 			auto left = getBlock(x - 1, y);
 
-			if(up.model !is null && up.type == BlockType.Street) { numSur++; isUp = true; }
-			if(down.model !is null && down.type == BlockType.Street) { numSur++; isDown = true; }
-			if(right.model !is null && right.type == BlockType.Street) { numSur++; isRight = true; }
-			if(left.model !is null && left.type == BlockType.Street) { numSur++; isLeft = true; }
+			if(up.type == BlockType.Street) { numSur++; isUp = true; }
+			if(down.type == BlockType.Street) { numSur++; isDown = true; }
+			if(right.type == BlockType.Street) { numSur++; isRight = true; }
+			if(left.type == BlockType.Street) { numSur++; isLeft = true; }
+			
 
-			if(numSur == 0) block.modelID = 4;
+			if(numSur == 0)
+			{
+				block.modelID = 4;
+				astarStreet[x + y * cast(int)width] = 1;
+			}
 			else if(numSur == 1)
 			{
 				block.modelID = 5;
@@ -204,6 +334,7 @@ struct Level
 					block.rotation = vec3(0, -90, 0);
 				if(isDown)
 					block.rotation = vec3(0, 90, 0);
+				astarStreet[x + y * cast(int)width] = 1;
 			}
 			else if(numSur == 2)
 			{
@@ -236,6 +367,7 @@ struct Level
 					block.modelID = 3;
 					block.rotation = vec3(0, 180, 0);
 				}
+				astarStreet[x + y * cast(int)width] = 1;
 			}
 			else if(numSur == 3)
 			{
@@ -256,14 +388,21 @@ struct Level
 				{
 					block.rotation = vec3(0, 0, 0);
 				}
+				astarStreet[x + y * cast(int)width] = 2;
 			}
 			else if(numSur == 4)
 			{
 				block.modelID = 1;
+				astarStreet[x + y * cast(int)width] = 3;
 			}
 			else
 			{
 				writeln("IMPOSSIBLE!");
+			}
+			
+			for(int i = 0; i < persons.length; i++)
+			{
+				persons[i].recalc();
 			}
 		}
 		return block;
@@ -271,6 +410,11 @@ struct Level
 
 	void update()
 	{
+		for(int i = 0; i < persons.length; i++)
+		{
+			persons[i].update();
+		}
+
 		foreach(int i, Block block; blocks)
 		{
 			float hapOff = random.nextFloat() * 0.5f + block.happyness;

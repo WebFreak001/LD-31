@@ -218,6 +218,7 @@
    <File path="..\saves\save0.json" />
    <File path="..\saves\save0_auto.json" />
   </Folder>
+  <File path="AStar.d" />
   <File path="GameScene.d" />
   <File path="Level.d" />
   <File path="main.d" />

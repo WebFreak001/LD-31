@@ -61,7 +61,7 @@ class ParticleSystem : GameObject
 
 	Random random;
 	
-	this(int max = 1000)
+	this(int max = 3000)
 	{
 		random = new Random();
 		particles = new Particle[max];
@@ -91,7 +91,7 @@ class ParticleSystem : GameObject
 		if(emitters.length > 0)
 		foreach(vec3 emitter; emitters)
 		{
-			if(random.nextFloat() < 0.3f)
+			if(random.nextFloat() < 0.15f)
 				add(Particle(emitter, vec3(random.nextFloat() - 0.5f, 3.0f, random.nextFloat() - 0.5f) * 0.05f, vec3(0), vec3(0.02f, 0.02f, 0.02f), vec3(0), vec3(0), 0, new ParticleMesh(mesh, mat)));
 		}
 

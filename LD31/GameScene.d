@@ -10,6 +10,7 @@ import std.algorithm;
 import Level;
 import NoDepthComponent;
 import ParticleSystem;
+import AStar;
 
 enum MAT_HOUSEL1 = 0;
 enum MAT_TRAILER1 = 1;
@@ -29,6 +30,7 @@ Mesh[][string] meshes;
 Material[string] materials;
 
 MouseState* mouse;
+KeyboardState* keyboard;
 bool wasDown;
 int cTool;
 
@@ -38,13 +40,18 @@ class Game3DLayer : RenderLayer
 	Scene scene;
 
 	MeshObject hover;
-	Level* level;
+	Level level;
 
 	u32vec2[] destroyQuery;
 
 	u32vec2 start;
 
 	ParticleSystem system;
+
+	Waypoint startP, endP;
+	Waypoint[] points;
+
+	AStar astar;
 
 	override void init(Scene scene)
 	{
@@ -103,6 +110,8 @@ class Game3DLayer : RenderLayer
 		system.mat = materials["smoke"];
 		system.addComponent(new NoDepthComponent());
 
+		
+
 		load("save0_auto");
 	}
 
@@ -112,9 +121,9 @@ class Game3DLayer : RenderLayer
 		
 		for(int i = 0; i < level.blocks.length; i++)
 		{
-			if(level.blocks[i].type == BlockType.Residential)
-				system.addEmitter(vec3(level.blocks[i].position.x * level.blockX - level.width * 0.5f * level.blockX, 3, level.blocks[i].position.z * level.blockY - level.height * 0.5f * level.blockY));
-			addMesh(meshes[level.blocks[i].model][level.blocks[i].modelID], materials[level.blocks[i].material], vec3(level.blocks[i].position.x * level.blockX - level.width * 0.5f * level.blockX, 0, level.blocks[i].position.z * level.blockY - level.height * 0.5f * level.blockY), level.blocks[i].rotation * 0.0174532925f).data = cast(void*)1;
+			//if(level.blocks[i].type == BlockType.Residential)
+			//	system.addEmitter(gridToAbsolute(vec3(level.blocks[i].position.x, 3, level.blocks[i].position.z)));
+			addMesh(meshes[level.blocks[i].model][level.blocks[i].modelID], materials[level.blocks[i].material], gridToAbsolute(vec3(level.blocks[i].position.x, 0, level.blocks[i].position.z)), level.blocks[i].rotation * 0.0174532925f).data = cast(void*)1;
 		}
 	}
 
@@ -147,6 +156,42 @@ class Game3DLayer : RenderLayer
 	{
 		system.performDraw(context, renderer);
 		hover.performDraw(context, renderer);
+
+		const float gridX = 45 / 1920.0f;
+		const float gridY = 45 / 1080.0f;
+		
+		const float gridStartX = 510 / 1920.0f;
+		const float gridStartY = 90 / 1080.0f;
+
+		u32vec2 v = scene.view.size;
+		
+		float mousePosX = mouse.position.x / cast(float)v.x;
+		float mousePosY = mouse.position.y / cast(float)v.y;
+
+		int x = cast(int)((mousePosX - gridStartX) / gridX);
+		int y = cast(int)((mousePosY - gridStartY) / gridY);
+
+		if(keyboard.isKeyDown(SDLK_LSHIFT) && cTool == 10000)
+		{
+			if(level.hasBlock(x, y))
+			{
+				auto sur = getSurronding(x, y, level.getBlock(x, y).type);
+				foreach(u32vec2 block; sur)
+				{
+					hover.transform.position = gridToAbsolute(vec3(block.x, 0.5f, block.y));
+					hover.performDraw(context, renderer);
+				}
+			}
+		}
+
+		if(points.length > 0)
+		{
+			foreach(Waypoint point; points)
+			{
+				hover.transform.position = gridToAbsolute(vec3(point.x, 0.5f, point.y));
+				hover.performDraw(context, renderer);
+			}
+		}
 	}
 	
 
@@ -157,6 +202,8 @@ class Game3DLayer : RenderLayer
 		if(mouse != null)
 		wasDown = mouse.isButtonDown(0);
 		mouse = Mouse.getState();
+
+		keyboard = Keyboard.getState();
 
 		const float gridX = 45 / 1920.0f;
 		const float gridY = 45 / 1080.0f;
@@ -181,16 +228,16 @@ class Game3DLayer : RenderLayer
 				start = u32vec2(cast(u32)x, cast(u32)y);
 			}
 
-			if(wasDown && mouse.isButtonUp(0))
+			if(mouse.isButtonDown(0))
 			{
-				if(cTool >= 0 && cTool <= 1)
+				if(cTool >= 0 && cTool <= 4)
 				{
 					switch(cTool)
 					{
 					case 0:
 						if(!level.hasBlock(x, y))
 						{
-							auto mesh = addMesh(street[0], materials["street"], vec3(x * level.blockX - level.width * 0.5f * level.blockX, 0, y * level.blockY - level.height * 0.5f * level.blockY), vec3(0));
+							auto mesh = addMesh(street[0], materials["street"], gridToAbsolute(vec3(x, 0, y)), vec3(0));
 							mesh.data = cast(void*)1;
 							Block block = level.postProcessStreet(level.add(&mesh, x, y, "street", 0, 0, "street", 0, BlockType.Street));
 							level.blocks[level.blocks.length - 1] = block;
@@ -209,9 +256,69 @@ class Game3DLayer : RenderLayer
 					case 1:
 						if(!level.hasBlock(x, y))
 						{
-							auto mesh = addMesh(houses_low[2], materials["houseL1"], vec3(x * level.blockX - level.width * 0.5f * level.blockX, 0, y * level.blockY - level.height * 0.5f * level.blockY), vec3(0));
+							auto mesh = addMesh(houses_low[2], materials["houseL1"], gridToAbsolute(vec3(x, 0, y)), vec3(0));
 							mesh.data = cast(void*)1;
 							level.add(&mesh, x, y, "houses_low", 2, 0, "houseL1", 0, BlockType.Residential);
+						}
+						break;
+					case 2:
+						if(level.hasBlock(x, y) && level.getBlock(x, y).type == BlockType.Street)
+						{
+							startP = new Waypoint();
+							startP.x = x;
+							startP.y = y;
+							startP.cost = 0;
+							startP.heuristic = 0;
+							startP.prev = null;
+							writeln("Set Start");
+						}
+						break;
+					case 3:
+						if(level.hasBlock(x, y) && level.getBlock(x, y).type == BlockType.Street)
+						{
+							endP = new Waypoint();
+							endP.x = x;
+							endP.y = y;
+							endP.cost = 0;
+							endP.heuristic = 0;
+							endP.prev = null;
+							writeln("Set End");
+						}
+						break;
+					case 4:
+						int[] blocks = new int[cast(int)level.width * cast(int)level.height];
+
+						for(int xx = 0; xx < cast(int)level.width; xx++)
+						{
+							for(int yy = 0; yy < cast(int)level.height; yy++)
+							{
+								if(level.hasBlock(xx, yy) && level.getBlock(xx, yy).type == BlockType.Street)
+								{
+									if(level.getBlock(xx, yy).modelID == 0)
+										blocks[xx + yy * cast(int)level.width] = 1;
+									if(level.getBlock(xx, yy).modelID == 5)
+										blocks[xx + yy * cast(int)level.width] = 1;
+									if(level.getBlock(xx, yy).modelID == 3)
+										blocks[xx + yy * cast(int)level.width] = 1;
+									if(level.getBlock(xx, yy).modelID == 2)
+										blocks[xx + yy * cast(int)level.width] = 2;
+									if(level.getBlock(xx, yy).modelID == 1)
+										blocks[xx + yy * cast(int)level.width] = 3;
+								}
+								else
+									blocks[xx + yy * cast(int)level.width] = 999;
+							}
+						}
+						
+						writeln("Calculating");
+						astar = new AStar(startP, endP, blocks, cast(int)level.width, cast(int)level.height);
+						if(astar.calculate(points))
+						{
+							writeln("Calced");
+						}
+						else
+						{
+							writeln("Failed");
 						}
 						break;
 					default:
@@ -220,22 +327,52 @@ class Game3DLayer : RenderLayer
 				}
 				if(cTool == 10000)
 				{
-					level.remove(x, y);
-					level.updateStreets(x + 1, y);
-					level.updateStreets(x - 1, y);
-					level.updateStreets(x, y + 1);
-					level.updateStreets(x, y - 1);
-					updateGO(x + 1, y);
-					updateGO(x - 1, y);
-					updateGO(x, y + 1);
-					updateGO(x, y - 1);
-					updateGO(x, y);
+					if(level.hasBlock(x, y))
+					{
+						if(keyboard.isKeyDown(SDLK_LSHIFT))
+						{
+							auto sur = getSurronding(x, y, level.getBlock(x, y).type);
+							foreach(u32vec2 block; sur)
+							{
+								remove(block);
+							}
+						}
+						else
+						{
+							remove(x, y);
+						}
+					}
 				}
 			}
 		}
 		else
 		{
 			hover.transform.position = vec3(-10000, 0, -10000);
+		}
+
+		if(destroyQuery.length > 0)
+		{
+			int x = cast(int)destroyQuery[destroyQuery.length - 1].x;
+			int y = cast(int)destroyQuery[destroyQuery.length - 1].y;
+
+			destroyQuery.length--;
+
+			system.add(Particle(gridToAbsolute(vec3(x, 3, y) + vec3(random.nextFloat() - 0.5f, 0, random.nextFloat() - 0.5f)), vec3(random.nextFloat() - 0.5f, 3.0f, random.nextFloat() - 0.5f) * 0.05f, vec3(0.1f), vec3(0.02f, 0.02f, 0.02f), vec3(0), vec3(0), 0, new ParticleMesh(smoke[0], materials["smoke"])));
+			system.add(Particle(gridToAbsolute(vec3(x, 3, y) + vec3(random.nextFloat() - 0.5f, 0, random.nextFloat() - 0.5f)), vec3(random.nextFloat() - 0.5f, 3.0f, random.nextFloat() - 0.5f) * 0.05f, vec3(0.1f), vec3(0.02f, 0.02f, 0.02f), vec3(0), vec3(0), 0, new ParticleMesh(smoke[0], materials["smoke"])));
+			system.add(Particle(gridToAbsolute(vec3(x, 3, y) + vec3(random.nextFloat() - 0.5f, 0, random.nextFloat() - 0.5f)), vec3(random.nextFloat() - 0.5f, 3.0f, random.nextFloat() - 0.5f) * 0.05f, vec3(0.1f), vec3(0.02f, 0.02f, 0.02f), vec3(0), vec3(0), 0, new ParticleMesh(smoke[0], materials["smoke"])));
+			system.add(Particle(gridToAbsolute(vec3(x, 3, y) + vec3(random.nextFloat() - 0.5f, 0, random.nextFloat() - 0.5f)), vec3(random.nextFloat() - 0.5f, 3.0f, random.nextFloat() - 0.5f) * 0.05f, vec3(0.1f), vec3(0.02f, 0.02f, 0.02f), vec3(0), vec3(0), 0, new ParticleMesh(smoke[0], materials["smoke"])));
+			system.add(Particle(gridToAbsolute(vec3(x, 3, y) + vec3(random.nextFloat() - 0.5f, 0, random.nextFloat() - 0.5f)), vec3(random.nextFloat() - 0.5f, 3.0f, random.nextFloat() - 0.5f) * 0.05f, vec3(0.1f), vec3(0.02f, 0.02f, 0.02f), vec3(0), vec3(0), 0, new ParticleMesh(smoke[0], materials["smoke"])));
+
+			level.remove(x, y);
+			level.updateStreets(x + 1, y);
+			level.updateStreets(x - 1, y);
+			level.updateStreets(x, y + 1);
+			level.updateStreets(x, y - 1);
+			updateGO(x + 1, y);
+			updateGO(x - 1, y);
+			updateGO(x, y + 1);
+			updateGO(x, y - 1);
+			updateGO(x, y);
 		}
 
 		level.updateHouses();
@@ -249,10 +386,47 @@ class Game3DLayer : RenderLayer
 		}
 	}
 
-	void remove(u32vec2 v) { remove(cast(int)v.x, cast(int)v.y); }
+	u32vec2[] getSurronding(int x, int y, BlockType type)
+	{
+		u32vec2[] blocks;
+
+		for(int xo = -2; xo <= 2; xo++)
+		{
+			for(int yo = -2; yo <= 2; yo++)
+			{
+				if(inBounds(x + xo, y + yo) && level.hasBlock(x + xo, y + yo))
+				{
+					if(level.getBlock(x + xo, y + yo).type == type)
+					{
+						blocks.length++;
+						blocks[blocks.length - 1] = u32vec2(x + xo, y + yo);
+					}
+				}
+			}
+		}
+
+		return blocks;
+	}
+
+	bool inBounds(int x, int y)
+	{
+		return !(x < 0 || y < 0 || x >= level.width || y >= level.height);
+	}
+
+	void remove(u32vec2 v)
+	{
+		if(!inBounds(v.x, v.y)) return;
+		for(int i = 0; i < destroyQuery.length; i++) { if(destroyQuery[i].x == v.x && destroyQuery[i].y == v.y) return; }
+
+		destroyQuery.reverse();
+		destroyQuery.length++;
+		destroyQuery[destroyQuery.length - 1] = v;
+		destroyQuery.reverse();
+	}
 
 	void remove(int x, int y)
 	{
+		remove(u32vec2(cast(u32)x, cast(u32)y));
 	}
 
 	void updateGO(int x, int y)
@@ -276,6 +450,11 @@ class Game3DLayer : RenderLayer
 			}
 		}
 	}
+	
+	vec3 gridToAbsolute(vec3 grid)
+	{
+		return vec3(grid.x * level.blockX - level.width * 0.5f * level.blockX, grid.y, grid.z * level.blockY - level.height * 0.5f * level.blockY);
+	}
 
 	override void destroy()
 	{
@@ -295,7 +474,10 @@ class GameGUILayer : RenderLayer
 		this.scene = scene;
 		obj ~= addMesh(meshes["street"][0], materials["street"], vec3(170, 0, -100), vec3(0), vec3(3, 1, 3));
 		obj ~= addMesh(meshes["houses_low"][0], materials["houseL1"], vec3(170, 0, -60), vec3(0), vec3(3, 1, 3));
-		obj ~= addMesh(meshes["houses_low"][0], materials["houseL1"], vec3(170, 0, -20), vec3(0), vec3(3, 1, 3));
+		obj ~= addMesh(meshes["houses_low"][1], materials["houseL1"], vec3(170, 0, -20), vec3(0), vec3(3, 1, 3));
+		obj ~= addMesh(meshes["houses_low"][2], materials["houseL1"], vec3(170, 0, 20), vec3(0), vec3(3, 1, 3));
+		obj ~= addMesh(meshes["houses_low"][3], materials["houseL1"], vec3(170, 0, 60), vec3(0), vec3(3, 1, 3));
+		obj ~= addMesh(meshes["houses_low"][4], materials["houseL1"], vec3(170, 0, 100), vec3(0), vec3(3, 1, 3));
 	}
 	
 	private GameObject addMesh(Mesh mesh, Material material, vec3 position, vec3 rotation = vec3(0), vec3 scale = vec3(1))
